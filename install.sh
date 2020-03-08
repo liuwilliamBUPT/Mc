@@ -23,6 +23,12 @@ else
 fi
 }
 
+installPackage(){
+if dpkg --get-selections | grep $1 ; then
+	sudoExec 'apt install $1'
+fi
+}
+
 if [ $USER == "root" -o $UID -eq 0 ];
 then
 	:
@@ -38,9 +44,8 @@ else
 	sudo_flag=false
 fi
 
-if dpkg --get-selections | grep curl ; then
-	sudoExec 'apt install curl'
-fi
+installPackage "curl"
+installPackage "jq"
 
 # Detect ip address.
 geoip=$(curl -s https://api.ip.sb/geoip)
