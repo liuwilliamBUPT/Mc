@@ -1,5 +1,7 @@
 #!/bin/bash
 
+HEADER='--header="User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.121 Safari/537.36"' 
+
 # This function is used to check whether the input is numbers. Accept string arguments and replace numbers with regulars. Then check whether the ${tmp} is null.
 checkInt(){
 tmp=$(echo $1|sed 's/[0-9]//g')
@@ -24,18 +26,21 @@ fi
 }
 
 installPackage(){
-if dpkg --get-selections | grep $1 ; then
-	sudoExec 'apt install $1'
+if dpkg --get-selections | grep "^"$1 ; then
+	echo -e "\033[1;44;37m${1} had been installed before.\033[0m\n"
+else
+	echo -e "\033[1;44;37mInstalling ${1}...\033[0m\n"
+	sudoExec "apt install -y ${1} >/dev/null 2>&1"
 fi
 }
 
-if [ $USER == "root" -o $UID -eq 0 ];
-then
-	:
-else
-    echo -e "\033[1;44;37m请使用管理员权限运行此脚本！\033[0m\n"
-    exit
-fi
+#if [ $USER == "root" -o $UID -eq 0 ];
+#then
+#	:
+#else
+#    echo -e "\033[1;44;37mPlease use root to execute this script!\033[0m\n"
+#    exit
+#fi
 
 # Detecting sudo status.
 if dpkg --get-selections | grep sudo ; then
@@ -46,14 +51,13 @@ fi
 
 installPackage "curl"
 installPackage "jq"
+installPackage "expect"
+installPackage "screen"
 
 # Detect ip address.
 geoip=$(curl -s https://api.ip.sb/geoip)
-if echo $ip | grep '"country_code":"CN"' >/dev/null 2>&1; then
-	CN=true
-else
-	CN=false
-fi
+CN=$(echo $geoip  |jq '.country_code == "CN"')
+#CN=true
 
 checkPackage='apt search openjdk-8-jdk-headless | grep openjdk-8-jdk-headless'
 
@@ -61,8 +65,8 @@ if ! sudoExec ${checkPackage}; then
 	apt_repo='apt install software-properties-common python-software-properties -y'
 	sudoExec ${apt_repo}
 	sudoExec 'add-apt-repository ppa:openjdk-r/ppa -y'
-	if CN; then
-		changePPA='sed -i "s/ppa\\.launchpad\\.net/launchpad\\.proxy\\.ustclug\\.org/g" /etc/apt/sources.list.d/openjdk-r-ubuntu-ppa-*.list'
+	if ${CN}; then
+		changePPA='sed -i "s/ppa.launchpad.net/launchpad.proxy.ustclug.org/g" /etc/apt/sources.list.d/openjdk-r-ubuntu-ppa-*.list'
 		sudoExec ${changePPA}
 	fi
 fi
@@ -76,11 +80,12 @@ if dpkg --get-selections | grep openjdk-8-jdk-headless; then
 	echo -e "\033[1;44;37mPackage openjdk-8-jdk-headless have been installed.\033[0m\n"
 else
 	echo -e "\033[1;44;37mInstalling openjdk-8-jdk-headless... \033[0m"
-	sudoExec 'apt update && apt install -y openjdk-8-jdk-headless'
+	sudoExec 'apt install -y openjdk-8-jdk-headless'
 	echo -e "\033[1;44;37mPackage openjdk-8-jdk-headless installed. \033[0m"
 fi
 
-echo -n "Please speicify the path to install minecraft (default:${HOME}/minecraft) :"
+# Installation Path
+echo -n "Please speicify the path to install minecraft [default:${HOME}/minecraft)] :"
 read installPath
 
 if [ -z ${installPath} ]; then
@@ -97,14 +102,14 @@ if [ ! -d ${installPath}/minecraft ]; then
 fi
 
 cd ${installPath}/minecraft || return 255
-if [ $? = 255 ]; then echo "No such Directory!";fi
+if [ $? = 255 ]; then echo "No such Directory!"; exit; fi
 
 # Set a flag to detect whether to download a new minecraft server.
 if [ -f ./minecraft_server.*.jar ]; then
-	tempver=$(find ./minecraft_server.*.jar | awk -F[\.] '{print $2"."$3"."$4}')
+	tempver=$(find ./minecraft_server.*.jar | grep -o -P "(?<=server\.)[0-9]+\.[0-9]+\.*[0-9]*(?=\.jar)")
 	# Store the existed minecraft server version in tempver.
     while true; do
-        echo -n "Detect that there exists minecraft_server.${tempver}.jar, do you want to get a new one? (yes/NO):"
+        echo -n "Detect that there exists \"minecraft_server.${tempver}.jar\", do you want to get a new one? [yes/NO] :"
         read yn
         if [ -z ${yn} ]; then
             yn='N'
@@ -127,24 +132,99 @@ else
 	flag=1
 fi
 
+# Download version_manifest.json
+if [ ! -f "version_manifest.json" ]; then
+	echo "Downloading version_manifest.json ..."
+	wget "${HEADER}" -O ${installPath}/minecraft/version_manifest.json "https://launchermeta.mojang.com/mc/game/version_manifest.json"
+fi
+#if [ $? -ne 0 ]; then
+#	echo -e "Due to network problem, please check the stable version numbers in the following address."
+#	echo -e "https://minecraft.gamepedia.com/Java_Edition_version_history/Development_versions"
+#	echo -e "https://minecraft-zh.gamepedia.com/Java%E7%89%88%E7%89%88%E6%9C%AC%E8%AE%B0%E5%BD%95/%E5%BC%80%E5%8F%91%E7%89%88%E6%9C%AC"
+
 # Handle flag.
+#if [ ${flag} -eq 1 ]; then
+#	echo -n "Chose the version(default = 1.12.2) you want to use:"
+#	read version
+#	if [ -z ${version} ];then
+#		version='1.12.2'
+#	fi
+
+    # This download url may be invalid in the future.
+#	wget --header="Host: s3.amazonaws.com" \
+#	--header="Connection: keep-alive" \
+#	--header="Upgrade-Insecure-Requests: 1" \
+#	--header="User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.121 Safari/537.36" \
+#	--header="Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8" \
+#	--header="Accept-Encoding: gzip, deflate, br" \
+#	--header="Accept-Language: zh-CN,zh;q=0.9,fr;q=0.8,zh-TW;q=0.7" \
+#	"https://s3.amazonaws.com/Minecraft.Download/versions/${version}/minecraft_server.${version}.jar"
+#fi
+
+# flag -eq 1: No existing server file.
 if [ ${flag} -eq 1 ]; then
-	echo -n "Chose the version(default = 1.12.2) you want to use:"
+
+	while true; do
+		echo -n "Do you want to show you all the available stable versions? [yes/NO]"
+		read yn
+		if [ -z ${yn} ]; then
+			yn='N'
+		fi
+		case $yn in
+			[Yy]* )
+#				wget -qO- "https://s3.amazonaws.com/Minecraft.Download/versions/versions.json" | jq ".versions[].id" | grep -o -P "(?<=\")[0-9]+\.[0-9]+\.*[0-9]*(?=\")"
+				cat version_manifest.json | jq ".versions[].id" | grep -o -P "(?<=\")[0-9]+\.[0-9]+\.*[0-9]*(?=\")"
+				break
+				;;
+			[Nn]* )
+				echo -e "\033[1;44;37mYou can find the stable version numbers here. https://minecraft.gamepedia.com/Java_Edition_version_history/Development_versions\033[0m\n"
+				break
+				;;
+			* ) echo "Please answer yes or no.";;
+		esac
+	done
+
+	echo -n "Chose the version you want to use: [default=1.12.2] "
 	read version
 	if [ -z ${version} ];then
 		version='1.12.2'
 	fi
+	if ${CN}; then
+		while true; do
+			echo -n "Use IPv6 to download:[yes/NO] "
+			read yn
+			if [ -z ${yn} ]; then
+				yn='N'
+			fi
+			case $yn in
+				[Yy]* )
+					IPv6="-6"
+					break
+					;;
+				[Nn]* )
+					IPv6="-4"
+					break
+					;;
+				* ) echo "Please answer yes or no.";;
+			esac
+		done
+	fi
+	
+	# MCLanucher API reference: https://github.com/tomsik68/mclauncher-api
+	# Query 
+	version_url=$(cat ${installPath}/minecraft/version_manifest.json | jq -r --arg "VERSION" "${version}" '.versions[] | select(.id == $VERSION) | .url')
+	echo "Downloading ${version}.json"	
+	wget "${HEADER}" -O "${installPath}/minecraft/${version}.json" ${version_url}
+	# Network Error?
+	server_url=$(cat ${installPath}/minecraft/${version}.json | jq -r '.downloads.server.url')
+	echo "Downloading minecraft_server.${version}.jar"
+	if ${CN} ;then
+		server_url=$(echo $server_url | sed "s/launcher.mojang.com/mirrors.limee.dev/g")
+		wget ${IPv6} "${HEADER}" -O "${installPath}/minecraft/minecraft_server.${version}.jar" ${server_url}
+	fi
 
-    # This download url may be invalid in the future.
-	wget --header="Host: s3.amazonaws.com" \
-	--header="Connection: keep-alive" \
-	--header="Upgrade-Insecure-Requests: 1" \
-	--header="User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.121 Safari/537.36" \
-	--header="Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8" \
-	--header="Accept-Encoding: gzip, deflate, br" \
-	--header="Accept-Language: zh-CN,zh;q=0.9,fr;q=0.8,zh-TW;q=0.7" \
-	"https://s3.amazonaws.com/Minecraft.Download/versions/${version}/minecraft_server.${version}.jar"
 fi
+
 
 while true
 do
@@ -175,19 +255,8 @@ do
 	fi
 done
 
-# Check the installation status of expect.
-echo "Check the installation status of expect."
-dpkg --get-selections | grep "^expect"
-if [ $? -ne 0 ]; then
-	echo -e "\033[1;44;37mInstalling expect...\033[0m\n"
-	installExpect='apt install -y expect >/dev/null 2>&1'
-	sudoExec $installExpect
-fi
-
 # First, check the existation of the gameInit.exp. If not, check eula.txt...
 
-echo "_____________________________________________"
-pwd
 # Check if eual.txt exists.
 if [ ! -f ./eula.txt ]; then
 	# If not, create gameInit.exp to firstly launch mc, and this file will be created automatically.
@@ -198,8 +267,9 @@ set timeout 30
 set maxmem [lindex $argv 0]
 set minmem [lindex $argv 1]
 set version [lindex $argv 2]
-cd .
-spawn java -Xmx${maxmem}M -Xms${minmem}M -jar minecraft_server.${version}.jar nogui
+set installPath [lindex $argv 3]
+
+spawn java -Xmx${maxmem}M -Xms${minmem}M -jar ${installPath}/minecraft/minecraft_server.${version}.jar nogui
 expect "*Stopping*" {exec sh -c {
 touch finised
 }}
@@ -207,7 +277,7 @@ EOF
 
     if [[ $? -eq 0 ]]; then
 		chmod 700 ./gameInit.exp
-		expect ./gameInit.exp ${maxmem} ${minmem} ${version}
+		expect ./gameInit.exp ${maxmem} ${minmem} ${version} ${installPath}
 		sed -i 's/eula=false/eula=true/g' ./eula.txt
 		sed -i 's/online-mode=true/online-mode=false/g' ./server.properties
 	fi
@@ -225,26 +295,29 @@ else
 fi
 
 
-cat > ./gameInit.exp<<EOF
+#cat > ./gameInit.exp<<EOF
 #!/usr/bin/expect -f
-set timeout 30
-set maxmem [lindex $argv 0]
-set minmem [lindex $argv 1]
-set version [lindex $argv 2]
-cd .
-spawn java -Xmx${maxmem}M -Xms${minmem}M -jar minecraft_server.${version}.jar nogui
-expect "*Done*" {
-send "stop\r"
-exec sh -c {
-touch finised
-}}
-EOF
-if [ $? -eq 0 ]; then
-	chmod 700 ./gameInit.exp
-	expect ./gameInit.exp ${maxmem} ${minmem} ${version}
-fi
-while [ ! $? ]
-do
-	sleep 1s
-done
+#set timeout 30
+#set maxmem [lindex $argv 0]
+#set minmem [lindex $argv 1]
+#set version [lindex $argv 2]
+#set installPath [lindex $argv 3]
+
+#spawn java -Xmx${maxmem}M -Xms${minmem}M -jar ${installPath}/minecraft/minecraft_server.${version}.jar nogui
+#expect "*Done*" {
+#send "stop\r"
+#exec sh -c {
+#touch finised
+#}}
+#EOF
+#if [ $? -eq 0 ]; then
+#	chmod 700 ./gameInit.exp
+#	expect ./gameInit.exp ${maxmem} ${minmem} ${version} ${installPath}
+#fi
+#while [ ! $? ]
+#do
+#	sleep 1s
+#done
 rm gameInit.exp finised
+
+screen java -Xmx${maxmem}M -Xms${minmem}M -jar ${installPath}/minecraft/minecraft_server.${version}.jar nogui
