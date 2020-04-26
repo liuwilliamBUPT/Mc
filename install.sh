@@ -34,6 +34,11 @@ else
 fi
 }
 
+wrapExec(){
+	ERROR=$( { eval $@ > outfile; } 2>&1 ) || { rm outfile; }
+	echo "\033[1;46;33m${ERROR}\033[0m\n"
+}
+
 #if [ $USER == "root" -o $UID -eq 0 ];
 #then
 #	:
@@ -53,6 +58,8 @@ installPackage "curl"
 installPackage "jq"
 installPackage "expect"
 installPackage "screen"
+
+# deinstall ask for password?
 
 # Detect ip address.
 geoip=$(curl -s https://api.ip.sb/geoip)
@@ -116,7 +123,9 @@ if [ -f ./minecraft_server.*.jar ]; then
         fi
         case $yn in
             [Yy]* )
-                rm minecraft_server.${tempver}.jar
+                wrapExec rm minecraft_server.${tempver}.jar
+                wrapExec rm server.properties
+                wrapExec rm eula.txt
                 flag=1
                 break
                 ;;
@@ -271,7 +280,7 @@ set installPath [lindex $argv 3]
 
 spawn java -Xmx${maxmem}M -Xms${minmem}M -jar ${installPath}/minecraft/minecraft_server.${version}.jar nogui
 expect "*Stopping*" {exec sh -c {
-touch finised
+touch finished
 }}
 EOF
 
@@ -290,7 +299,7 @@ else
 		echo "Modify eula.txt and server.properties now."
 		sed -i 's/eula=false/eula=true/g' ./eula.txt
 		sed -i 's/online-mode=true/online-mode=false/g' ./server.properties
-		rm gameInit.exp
+		wrapExec rm gameInit.exp
 	fi
 fi
 
@@ -318,6 +327,10 @@ fi
 #do
 #	sleep 1s
 #done
-rm gameInit.exp finised
+# rm gameInit.exp finished
 
 screen java -Xmx${maxmem}M -Xms${minmem}M -jar ${installPath}/minecraft/minecraft_server.${version}.jar nogui
+
+# rm: cannot remove 'gameInit.exp': No such file or directory
+# rm: cannot remove 'finised': No such file or directory
+# wrap command to handle error
