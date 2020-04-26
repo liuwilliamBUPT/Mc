@@ -4,7 +4,7 @@ HEADER='--header="User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWeb
 
 # This function is used to check whether the input is numbers. Accept string arguments and replace numbers with regulars. Then check whether the ${tmp} is null.
 checkInt(){
-tmp=$(echo $1|sed 's/[0-9]//g')
+tmp=$(echo "$1"|sed 's/[0-9]//g')
 if [ -n "${tmp}" ]; then
 	return 0
 else
@@ -17,16 +17,16 @@ sudoExec(){
 if $sudo_flag; then
 	local cmd='sudo '
 	cmd+=$@
-	eval $cmd
+	eval "$cmd"
 	return $?
 else
-	eval $1
+	eval "$1"
 	return $?
 fi
 }
 
 installPackage(){
-if dpkg --get-selections | grep "^"$1 ; then
+if dpkg --get-selections | grep "^""$1" ; then
 	echo -e "\033[1;44;37m${1} had been installed before.\033[0m\n"
 else
 	echo -e "\033[1;44;37mInstalling ${1}...\033[0m\n"
@@ -63,18 +63,18 @@ installPackage "screen"
 
 # Detect ip address.
 geoip=$(curl -s https://api.ip.sb/geoip)
-CN=$(echo $geoip  |jq '.country_code == "CN"')
+CN=$(echo "$geoip"  |jq '.country_code == "CN"')
 #CN=true
 
 checkPackage='apt search openjdk-8-jdk-headless | grep openjdk-8-jdk-headless'
 
-if ! sudoExec ${checkPackage}; then
+if ! sudoExec "${checkPackage}"; then
 	apt_repo='apt install software-properties-common python-software-properties -y'
-	sudoExec ${apt_repo}
+	sudoExec "${apt_repo}"
 	sudoExec 'add-apt-repository ppa:openjdk-r/ppa -y'
 	if ${CN}; then
 		changePPA='sed -i "s/ppa.launchpad.net/launchpad.proxy.ustclug.org/g" /etc/apt/sources.list.d/openjdk-r-ubuntu-ppa-*.list'
-		sudoExec ${changePPA}
+		sudoExec "${changePPA}"
 	fi
 fi
 
@@ -93,22 +93,22 @@ fi
 
 # Installation Path
 echo -n "Please speicify the path to install minecraft [default:${HOME}/minecraft)] :"
-read installPath
+read -r installPath
 
-if [ -z ${installPath} ]; then
+if [ -z "${installPath}" ]; then
     installPath="${HOME}/minecraft"
 fi
-echo ${installPath} | grep 'minecraft/\?$'
-if [ $? -eq 0 ]; then
-    installPath=$( echo ${installPath%/minecraf*})
+
+if echo "${installPath}" | grep 'minecraft/\?$'; then
+    installPath=$( echo "${installPath%/minecraf*}")
 fi
 
-if [ ! -d ${installPath}/minecraft ]; then
+if [ ! -d "${installPath}"/minecraft ]; then
     echo "Create minecraft directory."
-	mkdir -p ${installPath}/minecraft
+	mkdir -p "${installPath}"/minecraft
 fi
 
-cd ${installPath}/minecraft || return 255
+cd "${installPath}"/minecraft || return 255
 if [ $? = 255 ]; then echo "No such Directory!"; exit; fi
 
 # Set a flag to detect whether to download a new minecraft server.
@@ -117,13 +117,13 @@ if [ -f ./minecraft_server.*.jar ]; then
 	# Store the existed minecraft server version in tempver.
     while true; do
         echo -n "Detect that there exists \"minecraft_server.${tempver}.jar\", do you want to get a new one? [yes/NO] :"
-        read yn
-        if [ -z ${yn} ]; then
+        read -r yn
+        if [ -z "${yn}" ]; then
             yn='N'
         fi
         case $yn in
             [Yy]* )
-                wrapExec rm minecraft_server.${tempver}.jar
+                wrapExec rm minecraft_server."${tempver}".jar
                 wrapExec rm server.properties
                 wrapExec rm eula.txt
                 flag=1
@@ -144,7 +144,7 @@ fi
 # Download version_manifest.json
 if [ ! -f "version_manifest.json" ]; then
 	echo "Downloading version_manifest.json ..."
-	wget "${HEADER}" -O ${installPath}/minecraft/version_manifest.json "https://launchermeta.mojang.com/mc/game/version_manifest.json"
+	wget "${HEADER}" -O "${installPath}"/minecraft/version_manifest.json "https://launchermeta.mojang.com/mc/game/version_manifest.json"
 fi
 
 # flag -eq 1: No existing server file.
@@ -152,8 +152,8 @@ if [ ${flag} -eq 1 ]; then
 
 	while true; do
 		echo -n "Do you want to show you all the available stable versions? [yes/NO]"
-		read yn
-		if [ -z ${yn} ]; then
+		read -r yn
+		if [ -z "${yn}" ]; then
 			yn='N'
 		fi
 		case $yn in
@@ -170,15 +170,15 @@ if [ ${flag} -eq 1 ]; then
 	done
 
 	echo -n "Chose the version you want to use: [default=1.12.2] "
-	read version
-	if [ -z ${version} ];then
+	read -r version
+	if [ -z "${version}" ];then
 		version='1.12.2'
 	fi
 	if ${CN}; then
 		while true; do
 			echo -n "Use IPv6 to download:[yes/NO] "
-			read yn
-			if [ -z ${yn} ]; then
+			read -r yn
+			if [ -z "${yn}" ]; then
 				yn='N'
 			fi
 			case $yn in
@@ -197,17 +197,18 @@ if [ ${flag} -eq 1 ]; then
 	
 	# MCLanucher API reference: https://github.com/tomsik68/mclauncher-api
 	# Query 
-	version_url=$(cat ${installPath}/minecraft/version_manifest.json | jq -r --arg "VERSION" "${version}" '.versions[] | select(.id == $VERSION) | .url')
+	version_url=$(cat "${installPath}"/minecraft/version_manifest.json | jq -r --arg "VERSION" "${version}" '.versions[] | select(.id == $VERSION) | .url')
 	echo "Downloading ${version}.json"	
-	wget "${HEADER}" -O "${installPath}/minecraft/${version}.json" ${version_url}
+	wget "${HEADER}" -O "${installPath}/minecraft/${version}.json" "${version_url}"
 	# Network Error?
-	server_url=$(cat ${installPath}/minecraft/${version}.json | jq -r '.downloads.server.url')
+	server_url=$(cat "${installPath}"/minecraft/${version}.json | jq -r '.downloads.server.url')
 	echo "Downloading minecraft_server.${version}.jar"
 	if ${CN} ;then
-		server_url=$(echo $server_url | sed "s/launcher.mojang.com/mirrors.limee.dev/g")
-		wget ${IPv6} "${HEADER}" -O "${installPath}/minecraft/minecraft_server.${version}.jar" ${server_url}
+		server_url=$(echo "$server_url" | sed "s/launcher.mojang.com/mirrors.limee.dev/g")
+		wget ${IPv6} "${HEADER}" -O "${installPath}/minecraft/minecraft_server.${version}.jar" "${server_url}"
+	else
+		wget ${IPv6} "${HEADER}" -O "${installPath}/minecraft/minecraft_server.${version}.jar" "${server_url}"
 	fi
-
 fi
 
 
@@ -215,16 +216,16 @@ while true
 do
 	# Use Ctrl + Backspace to delete error input.
 	read -p "Set the minimum memory and maximum memory. [example: 512 1024]: " minmem maxmem
-	if [ -z ${maxmem} ]; then
+	if [ -z "${maxmem}" ]; then
 		check=0
-	elif [ -z ${minmem} ]; then
+	elif [ -z "${minmem}" ]; then
 		check=0
 	else
 		check=1
 	fi
-    checkInt ${maxmem}
+    checkInt "${maxmem}"
 	maxS=$?
-	checkInt ${minmem}
+	checkInt "${minmem}"
 	minS=$?
 
     if [[ ${maxS} -eq 0 || ${minS} -eq 0 || ${maxmem} -eq 0 || ${minmem} -eq 0 || ${minmem} -gt ${maxmem} ]]; then
@@ -262,7 +263,7 @@ EOF
 
     if [[ $? -eq 0 ]]; then
 		chmod +x ./gameInit.exp
-		expect ./gameInit.exp ${maxmem} ${minmem} ${version} ${installPath}
+		expect ./gameInit.exp "${maxmem}" "${minmem}" ${version} "${installPath}"
 		sed -i 's/eula=false/eula=true/g' ./eula.txt
 		sed -i 's/online-mode=true/online-mode=false/g' ./server.properties
 	fi
@@ -279,4 +280,4 @@ else
 	fi
 fi
 
-screen java -Xmx${maxmem}M -Xms${minmem}M -jar ${installPath}/minecraft/minecraft_server.${version}.jar nogui
+screen java -Xmx"${maxmem}"M -Xms"${minmem}"M -jar "${installPath}"/minecraft/minecraft_server.${version}.jar nogui
