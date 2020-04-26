@@ -146,29 +146,6 @@ if [ ! -f "version_manifest.json" ]; then
 	echo "Downloading version_manifest.json ..."
 	wget "${HEADER}" -O ${installPath}/minecraft/version_manifest.json "https://launchermeta.mojang.com/mc/game/version_manifest.json"
 fi
-#if [ $? -ne 0 ]; then
-#	echo -e "Due to network problem, please check the stable version numbers in the following address."
-#	echo -e "https://minecraft.gamepedia.com/Java_Edition_version_history/Development_versions"
-#	echo -e "https://minecraft-zh.gamepedia.com/Java%E7%89%88%E7%89%88%E6%9C%AC%E8%AE%B0%E5%BD%95/%E5%BC%80%E5%8F%91%E7%89%88%E6%9C%AC"
-
-# Handle flag.
-#if [ ${flag} -eq 1 ]; then
-#	echo -n "Chose the version(default = 1.12.2) you want to use:"
-#	read version
-#	if [ -z ${version} ];then
-#		version='1.12.2'
-#	fi
-
-    # This download url may be invalid in the future.
-#	wget --header="Host: s3.amazonaws.com" \
-#	--header="Connection: keep-alive" \
-#	--header="Upgrade-Insecure-Requests: 1" \
-#	--header="User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.121 Safari/537.36" \
-#	--header="Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8" \
-#	--header="Accept-Encoding: gzip, deflate, br" \
-#	--header="Accept-Language: zh-CN,zh;q=0.9,fr;q=0.8,zh-TW;q=0.7" \
-#	"https://s3.amazonaws.com/Minecraft.Download/versions/${version}/minecraft_server.${version}.jar"
-#fi
 
 # flag -eq 1: No existing server file.
 if [ ${flag} -eq 1 ]; then
@@ -181,7 +158,6 @@ if [ ${flag} -eq 1 ]; then
 		fi
 		case $yn in
 			[Yy]* )
-#				wget -qO- "https://s3.amazonaws.com/Minecraft.Download/versions/versions.json" | jq ".versions[].id" | grep -o -P "(?<=\")[0-9]+\.[0-9]+\.*[0-9]*(?=\")"
 				cat version_manifest.json | jq ".versions[].id" | grep -o -P "(?<=\")[0-9]+\.[0-9]+\.*[0-9]*(?=\")"
 				break
 				;;
@@ -264,7 +240,7 @@ do
 	fi
 done
 
-# First, check the existation of the gameInit.exp. If not, check eula.txt...
+# First, check the existion of the gameInit.exp. If not, check eula.txt...
 
 # Check if eual.txt exists.
 if [ ! -f ./eula.txt ]; then
@@ -285,7 +261,7 @@ touch finished
 EOF
 
     if [[ $? -eq 0 ]]; then
-		chmod 700 ./gameInit.exp
+		chmod +x ./gameInit.exp
 		expect ./gameInit.exp ${maxmem} ${minmem} ${version} ${installPath}
 		sed -i 's/eula=false/eula=true/g' ./eula.txt
 		sed -i 's/online-mode=true/online-mode=false/g' ./server.properties
@@ -303,34 +279,4 @@ else
 	fi
 fi
 
-
-#cat > ./gameInit.exp<<EOF
-#!/usr/bin/expect -f
-#set timeout 30
-#set maxmem [lindex $argv 0]
-#set minmem [lindex $argv 1]
-#set version [lindex $argv 2]
-#set installPath [lindex $argv 3]
-
-#spawn java -Xmx${maxmem}M -Xms${minmem}M -jar ${installPath}/minecraft/minecraft_server.${version}.jar nogui
-#expect "*Done*" {
-#send "stop\r"
-#exec sh -c {
-#touch finised
-#}}
-#EOF
-#if [ $? -eq 0 ]; then
-#	chmod 700 ./gameInit.exp
-#	expect ./gameInit.exp ${maxmem} ${minmem} ${version} ${installPath}
-#fi
-#while [ ! $? ]
-#do
-#	sleep 1s
-#done
-# rm gameInit.exp finished
-
 screen java -Xmx${maxmem}M -Xms${minmem}M -jar ${installPath}/minecraft/minecraft_server.${version}.jar nogui
-
-# rm: cannot remove 'gameInit.exp': No such file or directory
-# rm: cannot remove 'finised': No such file or directory
-# wrap command to handle error
