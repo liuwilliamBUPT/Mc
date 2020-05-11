@@ -273,3 +273,4 @@ else
 fi
 
 screen java -Xmx"${maxmem}"M -Xms"${minmem}"M -jar "${installPath}"/minecraft/minecraft_server.${version}.jar nogui
+
