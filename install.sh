@@ -1,6 +1,6 @@
 #!/bin/bash
 
-HEADER='--header="User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.121 Safari/537.36"' 
+HEADER='--header="User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.121 Safari/537.36"'
 
 # This function is used to check whether the input is numbers. Accept string arguments and replace numbers with regulars. Then check whether the ${tmp} is null.
 checkInt(){
@@ -186,11 +186,11 @@ if [ ${flag} -eq 1 ]; then
             esac
         done
     fi
-    
+
     # MCLanucher API reference: https://github.com/tomsik68/mclauncher-api
-    # Query 
+    # Query
     version_url=$(cat "${installPath}"/minecraft/version_manifest.json | jq -r --arg "VERSION" "${version}" '.versions[] | select(.id == $VERSION) | .url')
-    echo "Downloading ${version}.json"  
+    echo "Downloading ${version}.json"
     wget "${HEADER}" -O "${installPath}/minecraft/${version}.json" "${version_url}"
     # Network Error?
     server_url=$(cat "${installPath}"/minecraft/${version}.json | jq -r '.downloads.server.url')
