@@ -1,42 +1,47 @@
 #!/bin/bash
+set -u
+
+source ./color.sh
 
 HEADER='--header="User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.121 Safari/537.36"'
 
-# This function is used to check whether the input is numbers. Accept string arguments and replace numbers with regulars. Then check whether the ${tmp} is null.
+# This function is used to check whether the input is a number. It accepts string arguments and replaces numbers with shell parameter expansion. Then check whether the ${tmp} is null.
 checkInt(){
-tmp=$(echo "$1"|sed 's/[0-9]//g')
-if [ -n "${tmp}" ]; then
-    return 0
-else
-    return 1
-fi
+    tmp=${1//[0-9]/}
+    if [ -n "${tmp}" ]; then
+        return 1
+    else
+        return 0
+    fi
 }
 
 # This function is used to execute sudo command.
 sudoExec(){
-if $sudo_flag; then
-    local cmd='sudo '
-    cmd+=$@
-    eval "$cmd"
-    return $?
-else
-    eval "$1"
-    return $?
-fi
+    if $sudo_flag; then
+        local cmd='sudo '
+        cmd+=$*
+        eval "$cmd"
+        return $?
+    else
+        eval "$1"
+        return $?
+    fi
 }
 
+# This function is used to install package by apt.
 installPackage(){
-if dpkg --get-selections | grep "^""$1" ; then
-    echo -e "\033[1;44;37m${1} had been installed before.\033[0m\n"
-else
-    echo -e "\033[1;44;37mInstalling ${1}...\033[0m\n"
-    sudoExec "apt install -y ${1} >/dev/null 2>&1"
-fi
+    if dpkg --get-selections | grep "^""$1\\s*install" ; then
+        echo -e "${background}${cbe}${foreground}${cyw}${bold}${1} had been installed before.${reset}\n"
+    else
+        echo -e "${background}${cbe}${foreground}${cyw}${bold}Installing ${1}...${reset}\n"
+        sudoExec "apt install -y ${1} >/dev/null 2>&1"
+    fi
 }
 
+# This fucntion is used to wrap command executation.
 wrapExec(){
-    ERROR=$( { eval $@ > outfile; } 2>&1 ) || { rm outfile; }
-    echo "\033[1;46;33m${ERROR}\033[0m\n"
+    ERROR=$( { eval "$@" > outfile; } 2>&1 ) || { rm outfile; }
+    echo -e "${foreground}${red}${bold}${ERROR}${reset}\n"
 }
 
 # Detecting sudo status.
@@ -46,6 +51,7 @@ else
     sudo_flag=false
 fi
 
+# Install the pre-requirement packages.
 installPackage "curl"
 installPackage "jq"
 installPackage "expect"
@@ -56,7 +62,6 @@ installPackage "screen"
 # Detect ip address.
 geoip=$(curl -s https://api.ip.sb/geoip)
 CN=$(echo "$geoip"  |jq '.country_code == "CN"')
-#CN=true
 
 checkPackage='apt search openjdk-8-jdk-headless | grep openjdk-8-jdk-headless'
 
@@ -76,11 +81,11 @@ echo 'Check installation status of java. Please note that this script will just 
 sudoExec 'apt update'
 
 if dpkg --get-selections | grep openjdk-8-jdk-headless; then
-    echo -e "\033[1;44;37mPackage openjdk-8-jdk-headless have been installed.\033[0m\n"
+    echo -e "${background}${cbe}${foreground}${cyw}${bold}Package openjdk-8-jdk-headless have been installed.${reset}\n"
 else
-    echo -e "\033[1;44;37mInstalling openjdk-8-jdk-headless... \033[0m"
+    echo -e "${background}${cbe}${foreground}${cyw}${bold}Installing openjdk-8-jdk-headless... ${reset}\n"
     sudoExec 'apt install -y openjdk-8-jdk-headless'
-    echo -e "\033[1;44;37mPackage openjdk-8-jdk-headless installed. \033[0m"
+    echo -e "${background}${cbe}${foreground}${cyw}${bold}Package openjdk-8-jdk-headless installed. ${reset}\n"
 fi
 
 # Installation Path
@@ -91,8 +96,9 @@ if [ -z "${installPath}" ]; then
     installPath="${HOME}/minecraft"
 fi
 
+# 
 if echo "${installPath}" | grep 'minecraft/\?$'; then
-    installPath=$( echo "${installPath%/minecraf*}")
+    installPath=${installPath%/minecraft*}
 fi
 
 if [ ! -d "${installPath}"/minecraft ]; then
@@ -104,11 +110,21 @@ cd "${installPath}"/minecraft || return 255
 if [ $? = 255 ]; then echo "No such Directory!"; exit; fi
 
 # Set a flag to detect whether to download a new minecraft server.
-if [ -f ./minecraft_server.*.jar ]; then
+exist_flag=false
+for file in ./minecraft_server.*.jar
+do
+  if [ -e "$file" ]
+  then
+    exist_flag=true
+    break
+  fi
+done
+
+if $exist_flag; then
     tempver=$(find ./minecraft_server.*.jar | grep -o -P "(?<=server\.)[0-9]+\.[0-9]+\.*[0-9]*(?=\.jar)")
     # Store the existed minecraft server version in tempver.
     while true; do
-        echo -n "Detect that there exists \"minecraft_server.${tempver}.jar\", do you want to get a new one? [yes/NO] :"
+        echo -n -e "Detect that there exists \"minecraft_server.${tempver}.jar\". Do you want to get a ${background}${cbe}${foreground}${cyw}${bold}new${reset} one? [yes/NO] :"
         read -r yn
         if [ -z "${yn}" ]; then
             yn='N'
@@ -150,11 +166,11 @@ if [ ${flag} -eq 1 ]; then
         fi
         case $yn in
             [Yy]* )
-                cat version_manifest.json | jq ".versions[].id" | grep -o -P "(?<=\")[0-9]+\.[0-9]+\.*[0-9]*(?=\")"
+                jq ".versions[].id" version_manifest.json | grep -o -P "(?<=\")[0-9]+\.[0-9]+\.*[0-9]*(?=\")"
                 break
                 ;;
             [Nn]* )
-                echo -e "\033[1;44;37mYou can find the stable version numbers here. https://minecraft.gamepedia.com/Java_Edition_version_history/Development_versions\033[0m\n"
+                echo -e "${background}${cbe}${foreground}${cyw}${bold}You can find the stable version numbers here. https://minecraft.gamepedia.com/Java_Edition_version_history/Development_versions${reset}\n"
                 break
                 ;;
             * ) echo "Please answer yes or no.";;
@@ -189,14 +205,14 @@ if [ ${flag} -eq 1 ]; then
 
     # MCLanucher API reference: https://github.com/tomsik68/mclauncher-api
     # Query
-    version_url=$(cat "${installPath}"/minecraft/version_manifest.json | jq -r --arg "VERSION" "${version}" '.versions[] | select(.id == $VERSION) | .url')
+    version_url=$(jq -r --arg "VERSION" "${version}" '.versions[] | select(.id == $VERSION) | .url' "${installPath}"/minecraft/version_manifest.json)
     echo "Downloading ${version}.json"
     wget "${HEADER}" -O "${installPath}/minecraft/${version}.json" "${version_url}"
     # Network Error?
-    server_url=$(cat "${installPath}"/minecraft/${version}.json | jq -r '.downloads.server.url')
+    server_url=$(jq -r '.downloads.server.url' "${installPath}"/minecraft/${version}.json)
     echo "Downloading minecraft_server.${version}.jar"
     if ${CN} ;then
-        server_url=$(echo "$server_url" | sed "s/launcher.mojang.com/mirrors.limee.dev/g")
+        server_url=${server_url/launcher.mojang.com/bmclapi2.bangbang93.com}
         wget ${IPv6} "${HEADER}" -O "${installPath}/minecraft/minecraft_server.${version}.jar" "${server_url}"
     else
         wget ${IPv6} "${HEADER}" -O "${installPath}/minecraft/minecraft_server.${version}.jar" "${server_url}"
@@ -207,7 +223,7 @@ fi
 while true
 do
     # Use Ctrl + Backspace to delete error input.
-    read -p "Set the minimum memory and maximum memory. [example: 512 1024]: " minmem maxmem
+    read -r -p "Set the minimum memory and maximum memory. [example: 512 1024]: " minmem maxmem
     if [ -z "${maxmem}" ]; then
         check=0
     elif [ -z "${minmem}" ]; then
@@ -261,7 +277,7 @@ EOF
     fi
 else
     # Else check whether the files have been modified.
-    cat ./eula.txt | grep eula=true >/dev/null
+    grep eula=true ./eula.txt >/dev/null
     if [[ $? -eq 0 ]]; then
         echo "Detect that there you might have run minecraft_server.${version}.jar successfully."
     else
