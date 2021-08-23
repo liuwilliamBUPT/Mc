@@ -7,7 +7,7 @@ HEADER='--header="User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWeb
 
 # This function is used to check whether the input is a number. It accepts string arguments and replaces numbers with shell parameter expansion. Then check whether the ${tmp} is null.
 checkInt(){
-    tmp=${1//[0-9]/}
+    local tmp=${1//[0-9]/}
     if [ -n "${tmp}" ]; then
         return 1
     else
@@ -38,10 +38,11 @@ installPackage(){
     fi
 }
 
-# This fucntion is used to wrap command executation.
+# This function is used to wrap command execution.
 wrapExec(){
-    ERROR=$( { eval "$@" > outfile; } 2>&1 ) || { rm outfile; }
-    echo -e "${foreground}${red}${bold}${ERROR}${reset}\n"
+    local error
+    error=$( { eval "$@" > outfile; } 2>&1 ) || { rm outfile; }
+    echo -e "${foreground}${red}${bold}${error}${reset}\n"
 }
 
 # Detecting sudo status.
@@ -57,11 +58,11 @@ installPackage "jq"
 installPackage "expect"
 installPackage "screen"
 
-# deinstall ask for password?
+# uninstall ask for password?
 
 # Detect ip address.
-geoip=$(curl -s https://api.ip.sb/geoip)
-CN=$(echo "$geoip"  |jq '.country_code == "CN"')
+geoIp=$(curl -s https://api.ip.sb/geoip)
+CN=$(echo "$geoIp"  |jq '.country_code == "CN"')
 
 checkPackage='apt search openjdk-8-jdk-headless | grep openjdk-8-jdk-headless'
 
@@ -70,6 +71,7 @@ if ! sudoExec "${checkPackage}"; then
     sudoExec "${apt_repo}"
     sudoExec 'add-apt-repository ppa:openjdk-r/ppa -y'
     if ${CN}; then
+        # Change the ppa repo address to ustc proxy mirror.
         changePPA='sed -i "s/ppa.launchpad.net/launchpad.proxy.ustclug.org/g" /etc/apt/sources.list.d/openjdk-r-ubuntu-ppa-*.list'
         sudoExec "${changePPA}"
     fi
@@ -89,7 +91,7 @@ else
 fi
 
 # Installation Path
-echo -n "Please speicify the path to install minecraft [default:${HOME}/minecraft)] :"
+echo -n "Please specify the path to install minecraft [default:${HOME}/minecraft)] :"
 read -r installPath
 
 if [ -z "${installPath}" ]; then
@@ -121,17 +123,17 @@ do
 done
 
 if $exist_flag; then
-    tempver=$(find ./minecraft_server.*.jar | grep -o -P "(?<=server\.)[0-9]+\.[0-9]+\.*[0-9]*(?=\.jar)")
-    # Store the existed minecraft server version in tempver.
+    tempVer=$(find ./minecraft_server.*.jar | grep -o -P "(?<=server\.)[0-9]+\.[0-9]+\.*[0-9]*(?=\.jar)")
+    # Store the existed minecraft server version in tempVer.
     while true; do
-        echo -n -e "Detect that there exists \"minecraft_server.${tempver}.jar\". Do you want to get a ${background}${cbe}${foreground}${cyw}${bold}new${reset} one? [yes/NO] :"
+        echo -n -e "Detect that there exists \"minecraft_server.${tempVer}.jar\". Do you want to get a ${background}${cbe}${foreground}${cyw}${bold}new${reset} one? [yes/NO] :"
         read -r yn
         if [ -z "${yn}" ]; then
             yn='N'
         fi
         case $yn in
             [Yy]* )
-                wrapExec rm minecraft_server."${tempver}".jar
+                wrapExec rm minecraft_server."${tempVer}".jar
                 wrapExec rm server.properties
                 wrapExec rm eula.txt
                 flag=1
@@ -139,7 +141,7 @@ if $exist_flag; then
                 ;;
             [Nn]* )
                 flag=0
-                version=${tempver}
+                version=${tempVer}
                 break
                 ;;
             * ) echo "Please answer yes or no.";;
@@ -223,20 +225,20 @@ fi
 while true
 do
     # Use Ctrl + Backspace to delete error input.
-    read -r -p "Set the minimum memory and maximum memory. [example: 512 1024]: " minmem maxmem
-    if [ -z "${maxmem}" ]; then
+    read -r -p "Set the minimum memory and maximum memory. [example: 512 1024]: " minMem maxMem
+    if [ -z "${maxMem}" ]; then
         check=0
-    elif [ -z "${minmem}" ]; then
+    elif [ -z "${minMem}" ]; then
         check=0
     else
         check=1
     fi
-    checkInt "${maxmem}"
+    checkInt "${maxMem}"
     maxS=$?
-    checkInt "${minmem}"
+    checkInt "${minMem}"
     minS=$?
 
-    if [[ ${maxS} -eq 0 || ${minS} -eq 0 || ${maxmem} -eq 0 || ${minmem} -eq 0 || ${minmem} -gt ${maxmem} ]]; then
+    if [[ ${maxS} -eq 0 || ${minS} -eq 0 || ${maxMem} -eq 0 || ${minMem} -eq 0 || ${minMem} -gt ${maxMem} ]]; then
         check=0
     else
         check=1
@@ -255,15 +257,15 @@ done
 if [ ! -f ./eula.txt ]; then
     # If not, create gameInit.exp to firstly launch mc, and this file will be created automatically.
     # RTFM to learn how to use expect wisely.
-    cat > ./gameInit.exp<<EOF
+    cat >./gameInit.exp <<EOF
 #!/usr/bin/expect -f
 set timeout 30
-set maxmem [lindex $argv 0]
-set minmem [lindex $argv 1]
+set maxMem [lindex $argv 0]
+set minMem [lindex $argv 1]
 set version [lindex $argv 2]
 set installPath [lindex $argv 3]
 
-spawn java -Xmx${maxmem}M -Xms${minmem}M -jar ${installPath}/minecraft/minecraft_server.${version}.jar nogui
+spawn java -Xmx${maxMem}M -Xms${minMem}M -jar ${installPath}/minecraft/minecraft_server.${version}.jar nogui
 expect "*Stopping*" {exec sh -c {
 touch finished
 }}
@@ -271,7 +273,7 @@ EOF
 
     if [[ $? -eq 0 ]]; then
         chmod +x ./gameInit.exp
-        expect ./gameInit.exp "${maxmem}" "${minmem}" ${version} "${installPath}"
+        expect ./gameInit.exp "${maxMem}" "${minMem}" ${version} "${installPath}"
         sed -i 's/eula=false/eula=true/g' ./eula.txt
         sed -i 's/online-mode=true/online-mode=false/g' ./server.properties
     fi
@@ -288,5 +290,5 @@ else
     fi
 fi
 
-screen java -Xmx"${maxmem}"M -Xms"${minmem}"M -jar "${installPath}"/minecraft/minecraft_server.${version}.jar nogui
+screen java -Xmx"${maxMem}"M -Xms"${minMem}"M -jar "${installPath}"/minecraft/minecraft_server.${version}.jar nogui
 
